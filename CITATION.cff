@@ -1,0 +1,69 @@
+cff-version: 1.2.0
+message: "If you use scmaps, please cite it as below, and cite the atlases it draws (see NOTICE)."
+title: "scmaps: subcortical and cerebellar brain maps in Python"
+type: software
+authors:
+  - family-names: Rezaei
+    given-names: Ali
+version: 0.1.0
+license: MIT
+repository-code: "https://github.com/alirzar/scmaps"
+keywords:
+  - neuroimaging
+  - subcortex
+  - cerebellum
+  - SUIT
+  - visualization
+references:
+  - type: article
+    title: "Topographic organization of the human subcortex unveiled with functional connectivity gradients"
+    authors:
+      - family-names: Tian
+        given-names: Ye
+      - family-names: Margulies
+        given-names: Daniel S.
+      - family-names: Breakspear
+        given-names: Michael
+      - family-names: Zalesky
+        given-names: Andrew
+    journal: "Nature Neuroscience"
+    volume: 23
+    start: 1421
+    end: 1432
+    year: 2020
+    doi: 10.1038/s41593-020-00711-6
+  - type: article
+    title: "A hierarchical atlas of the human cerebellum for functional precision mapping"
+    authors:
+      - family-names: Nettekoven
+        given-names: Caroline
+      - family-names: Zhi
+        given-names: Da
+      - family-names: Shahshahani
+        given-names: Ladan
+      - family-names: Pinho
+        given-names: Ana Luísa
+      - family-names: Saadon-Grosman
+        given-names: Noam
+      - family-names: Buckner
+        given-names: Randy L.
+      - family-names: Diedrichsen
+        given-names: Jörn
+    journal: "Nature Communications"
+    volume: 15
+    start: 8376
+    year: 2024
+    doi: 10.1038/s41467-024-52371-w
+  - type: article
+    title: "Surface-based display of volume-averaged cerebellar imaging data"
+    authors:
+      - family-names: Diedrichsen
+        given-names: Jörn
+      - family-names: Zotow
+        given-names: Ewa
+    journal: "PLoS ONE"
+    volume: 10
+    issue: 7
+    start: e0133402
+    year: 2015
+    doi: 10.1371/journal.pone.0133402

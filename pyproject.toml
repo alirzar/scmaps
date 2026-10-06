@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "scmaps"
+dynamic = ["version"]
+description = "Subcortical (Tian S2) and cerebellar (Nettekoven, SUIT flatmap) brain maps in Python, matching the MATLAB plotSubcortex / SUIT plotflatmap renders"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "NOTICE", "LICENSES/*"]
+authors = [{ name = "Ali Rezaei" }]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.22",
+    "matplotlib>=3.6",
+    "nibabel>=4",
+    "vtk>=9.2",
+]
+keywords = ["neuroimaging", "brain", "subcortex", "cerebellum", "SUIT", "visualization"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7", "pillow", "scipy", "pandas"]
+
+[tool.hatch.version]
+path = "src/scmaps/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/scmaps"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["tools/source", ".github"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

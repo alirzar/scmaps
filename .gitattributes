@@ -1,0 +1,11 @@
+# text files are stored with LF line endings
+* text=auto
+
+# data checked byte for byte (sha256 in tools/source/README.md, NOTICE and
+# tests): never convert line endings
+*.gii binary
+*.mat binary
+*.npz binary
+*.png binary
+*.lut -text
+tools/source/** -text

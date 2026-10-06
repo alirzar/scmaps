@@ -1,0 +1,62 @@
+scmaps bundles atlas data from three sources (src/scmaps/data/). The MIT
+licence in LICENSE covers the scmaps code only; each data file is
+redistributed under the terms of its source.
+
+
+1. FLAT.surf.gii, SUIT.shape.gii
+   The SUIT cerebellar flatmap and its shading underlay, by the Diedrichsen
+   lab (Western University).
+
+   Source: SUITPy (https://github.com/DiedrichsenLab/SUITPy), under the MIT
+   licence with an acknowledgement clause (LICENSES/SUITPy.txt).
+
+   Please cite:
+   - Diedrichsen J, Zotow E (2015). Surface-based display of volume-averaged
+     cerebellar imaging data. PLoS ONE 10(7): e0133402.
+     https://doi.org/10.1371/journal.pone.0133402
+   - Diedrichsen J (2006). A spatially unbiased atlas template of the human
+     cerebellum. NeuroImage 33(1): 127-138.
+     https://doi.org/10.1016/j.neuroimage.2006.05.056
+   - Wang Y, Li Y, Arafat B, Ashkanichenarlogh V, Nettekoven C, Pinho AL,
+     Hernandez-Castillo CR, Marquand AF, Diedrichsen J (2026). SUITPy: a
+     Python-based toolbox for the analysis of cerebellar functional and
+     anatomical imaging data across the human lifespan. Imaging Neuroscience
+     4, IMAG.a.1323. https://doi.org/10.1162/IMAG.a.1323
+
+
+2. cerebellum_labels.npz
+   The Nettekoven et al. (2024) asymmetric 32-region functional parcellation
+   of the cerebellum (NettekovenAsym32), as one label per SUIT flatmap vertex,
+   in the atlas's current numbering.
+
+   Source: the Diedrichsen lab's cerebellar atlas collection
+   (https://github.com/DiedrichsenLab/cerebellar_atlases,
+   Nettekoven_2024/atl-NettekovenAsym32_dseg.label.gii; a copy is in
+   tools/source/), under a Creative Commons Attribution (CC BY) licence.
+
+   Changes: none to the labels or names; stored as an integer array (.npz).
+
+   Please cite:
+   - Nettekoven C, Zhi D, Shahshahani L, Pinho AL, Saadon-Grosman N,
+     Buckner RL, Diedrichsen J (2024). A hierarchical atlas of the human
+     cerebellum for functional precision mapping. Nature Communications 15:
+     8376. https://doi.org/10.1038/s41467-024-52371-w
+
+
+3. subcortex_surfaces.npz
+   Surfaces of the 32 ROIs of the Melbourne Subcortex Atlas, Scale II, 3T
+   (MNI 2 mm), by Ye Tian and colleagues.
+
+   Source: https://github.com/yetianmed/subcortex, under the Melbourne
+   Subcortex Atlas License, which allows the atlas to be used, copied,
+   modified, merged, published and distributed, on the condition that any
+   publication that uses it cites the paper below.
+
+   Changes: each ROI's voxels turned into a surface (MATLAB's
+   boundary(..., 0.5)) and stored as .npz.
+
+   Please cite:
+   - Tian Y, Margulies DS, Breakspear M, Zalesky A (2020). Topographic
+     organization of the human subcortex unveiled with functional
+     connectivity gradients. Nature Neuroscience 23: 1421-1432.
+     https://doi.org/10.1038/s41593-020-00711-6

@@ -5,7 +5,15 @@ Subcortical and cerebellar brain maps in Python:
 * the 32 ROIs of the **Tian S2** subcortical atlas (Melbourne Subcortex Atlas,
   Scale II), drawn as 3-D surfaces;
 * the 32 regions of the **Nettekoven** asymmetric cerebellar atlas
-  (NettekovenAsym32), drawn on **SUIT's flatmap**.
+  (NettekovenAsym32), drawn on **SUIT's flatmap**;
+* for the **macaque**, the cerebellar regions of **SARM** (levels 3 to 6,
+  up to its 21 lobules per hemisphere), drawn on a **macaque cerebellar
+  flatmap** built from the NMT v2.1-sym template and shaded as SUIT's is
+  (see [Macaque cerebellum](#macaque-cerebellum)).
+
+Either flatmap can also be drawn in a **solid** style: flat colours on light
+grey, white lines between the regions, a grey outline
+([Solid style](#solid-style)).
 
 It is a port of MATLAB plotting code (`plotSubcortex.m`, and
 `plotCerebellum.m` built on SUIT's `plotflatmap.m`). It uses the same surfaces,
@@ -79,10 +87,77 @@ for no value), or a mapping from name to colour. For example,
 | size | `dpi=` (default 300); each view is 1.2 in tall | `dpi=`; the canvas is 4 in square |
 | highlight | `highlight=[names]`, `highlight_color=` (default gold) | the same, drawn without the underlay's shading (e.g. a seed) |
 | other | `nan_color=` (default grey 0.82) | `alpha=` (default 0.75): how much underlay shading shows through, one value or one per region |
+| style | | `style=`: `"suit"` (default) or `"solid"`; for solid, `nan_color=` (default grey 0.85), `border_color=` (white) and `outline_color=` (grey), `None` for no lines |
 
 The renderers take RGB directly as well:
 `scmaps.render_subcortex(rgb32x3, layout, dpi)` and
-`scmaps.render_cerebellum(rgb32x3, alphas, dpi)`.
+`scmaps.render_cerebellum(rgbNx3, alphas, dpi, atlas=..., style=...)`.
+
+## Solid style
+
+```python
+img = scmaps.cerebellum_map(values, style="solid", cmap="RdBu_r", vmin=-2, vmax=2)
+```
+
+The default style is SUIT's: the colours are blended with the flatmap's
+shading. `style="solid"` draws the regions in flat colour on a light-grey
+background, which is also the colour of a region without a value. White lines
+separate the regions and a grey outline gives near-white colours an edge. The
+canvas is the same as for the default style, so the two line up.
+
+The borders are smoothed rather than drawn along the flatmap's triangles. Each
+region's indicator is interpolated across the triangles and smoothed with a
+Gaussian. Each point then goes to the region whose smoothed indicator is
+largest. The smoothing is 0.76 units on the macaque flatmap, whose label
+borders otherwise step along its grid; no lobule loses more than 5 % of its
+area. On SUIT's flatmap it is 0.2 units, because that map has tiny regions
+(D1R is 2 vertices) and every region is kept. The shapes are computed once
+per atlas and drawn by matplotlib rather than VTK, so this style needs no
+OpenGL.
+
+## Macaque cerebellum
+
+```python
+# SARM level 6: 21 lobules per hemisphere, "SL_Cb1V" ... "SL_Fl", then "SR_..."
+img = scmaps.cerebellum_map({"SL_Cb6V": 1.2, "SR_Cb6V": 0.8}, atlas="SARM6",
+                            cmap="RdBu_r", vmin=-2, vmax=2)
+scmaps.cerebellum_regions("SARM5")   # the region names of a level, in plotting order
+```
+
+`atlas=` picks the parcellation and with it the flatmap: `"NettekovenAsym32"`
+(human, the default) or SARM's cerebellar cortex at level `"SARM3"` (the whole
+cortex), `"SARM4"` (vermis, intermediate, lateral, flocculus and
+paraflocculus), `"SARM5"` (the vermis split into anterior and posterior) or
+`"SARM6"` (the lobules: vermis I–X, intermediate 3–6, simple, crus I and II,
+paramedian, copula, paraflocculus, flocculus). Names are SARM's, with its
+hemisphere prefixes, so values extracted with SARM pass by name as they are.
+Everything else works as for the human map, `style="solid"` included. The
+example below draws the lobules and the level-5 values in the solid style.
+
+![macaque](examples/macaque.png)
+
+**How the flatmap is made** (`tools/build_macaque_flatmap.py`, from AFNI's NMT
+v2.1-sym distribution). The cerebellar cortex is the grey matter of the
+template's tissue segmentation inside SARM's level-6 lobules. In each sagittal
+slab the lobules fan out around the cerebellum's core: the fastigial nucleus
+near the midline, the slab's white matter and deep nuclei further out. Each
+grey-matter point is placed by its mediolateral position and its angle around
+that core, from lobule I over the top and the back down to lobule X and the
+(para)flocculus, the angle turned into a length along the cerebellar surface.
+A regular grid over the points is the flatmap (23,772 vertices); each vertex
+takes the majority lobule of its nearest points, and the right hemisphere is
+the left's mirror image (the template is symmetric). The underlay is the depth
+below the cerebellum's outer envelope (dark where a fissure opens), given
+SUIT's underlay distribution so the shading reads as on the human map. SARM's
+coarser levels label each vertex by its lobule's parent region.
+
+So the map keeps SARM's lobules, their order and their neighbours, laid out
+as SUIT's flatmap lays out the human cerebellum (vermis down the middle,
+anterior lobe at the top). Unlike SUIT's, it does not unfold the folia: cortex
+buried in a fissure shares the place of the surface above it, so a lobule's
+flat area is that of its outer envelope, not of its whole cortical sheet. It
+shows regional values; it is not a map for projecting voxel data at folial
+resolution.
 
 ## How it matches MATLAB
 
@@ -111,7 +186,7 @@ against two stored MATLAB renders.
 VTK renders off-screen, but it still needs an OpenGL implementation. On a
 Linux server or in CI without a display, use VTK ≥ 9.4, which falls back to
 EGL or OSMesa. Otherwise, install OSMesa (`libosmesa6`) or run under
-`xvfb-run`.
+`xvfb-run`. The cerebellum's solid style does not use VTK.
 
 ## Development
 
@@ -141,6 +216,11 @@ and the other sources ask for attribution. Full references are in `NOTICE`.
   Also Diedrichsen J (2006), *NeuroImage* 33(1): 127–138, for the SUIT
   template, and Wang Y, et al. (2026), *Imaging Neuroscience* 4,
   IMAG.a.1323, for SUITPy, the source of the flatmap files.
+* **Macaque cerebellum:** Hartig R, et al. (2021). Subcortical Atlas of the
+  Rhesus Macaque (SARM) for neuroimaging. *NeuroImage* 235: 117996; and Jung
+  B, et al. (2021). A comprehensive macaque fMRI pipeline and hierarchical
+  atlas. *NeuroImage* 235: 117997, for the NMT v2 template the flatmap is
+  built from.
 
 ## Licence
 
@@ -152,3 +232,4 @@ terms of its sources (`NOTICE`):
 | SUIT flatmap and underlay | MIT with an acknowledgement clause, from SUITPy (`LICENSES/SUITPy.txt`) |
 | Nettekoven cerebellar labels | CC BY (attribution) |
 | Tian S2 subcortical surfaces | Melbourne Subcortex Atlas License: free use and distribution; publications must cite Tian et al. (2020) |
+| macaque flatmap, underlay and SARM labels | derived from AFNI's NMT v2.1-sym and its SARM; please cite Hartig et al. (2021) and Jung et al. (2021) |

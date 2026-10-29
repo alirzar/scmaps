@@ -5,7 +5,7 @@ type: software
 authors:
   - family-names: Rezaei
     given-names: Ali
-version: 0.1.0
+version: 0.2.0
 license: MIT
 repository-code: "https://github.com/alirzar/scmaps"
 keywords:

@@ -60,3 +60,26 @@ redistributed under the terms of its source.
      organization of the human subcortex unveiled with functional
      connectivity gradients. Nature Neuroscience 23: 1421-1432.
      https://doi.org/10.1038/s41593-020-00711-6
+
+
+4. macaque/FLAT.surf.gii, macaque/NMT.shape.gii, macaque/cerebellum_labels.npz
+   The macaque cerebellar flatmap, its shading underlay and the SARM label
+   (levels 3-6) of each of its vertices, built by
+   tools/build_macaque_flatmap.py from the NMT v2.1-sym template's tissue
+   segmentation and its Subcortical Atlas of the Rhesus Macaque (SARM), as
+   AFNI distributes them (@Install_NMT); the input files' sha256 are stored
+   in cerebellum_labels.npz (inputs_sha256). The underlay's values follow
+   the distribution of SUIT.shape.gii (item 1).
+
+   Changes: derived data only (a flat mesh, per-vertex labels and depths);
+   no template or atlas volume is redistributed.
+
+   Please cite (as the NMT v2.1 distribution's readme gives them):
+   - Hartig R, Glen D, Jung B, Logothetis NK, Paxinos G, Garza-Villareal EA,
+     Messinger A, Evrard HC (2021). Subcortical Atlas of the Rhesus Macaque
+     (SARM) for neuroimaging. NeuroImage 235: 117996.
+     https://doi.org/10.1016/j.neuroimage.2021.117996
+   - Jung B, Taylor PA, Seidlitz PA, Sponheim C, Perkins P, Glen DR,
+     Messinger A (2021). A Comprehensive Macaque FMRI Pipeline and
+     Hierarchical Atlas. NeuroImage 235: 117997.
+     https://doi.org/10.1016/j.neuroimage.2021.117997

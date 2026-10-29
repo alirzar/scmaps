@@ -224,3 +224,95 @@ def test_the_cerebellar_numbering_matters():
     thresholds the port meets."""
     _iou, d = _against_matlab("cerebellum", reorder=False)
     assert (d > 0.1).mean() > 0.05
+
+
+def test_macaque_flatmap_lines_up():
+    """The macaque flatmap (tools/build_macaque_flatmap.py): every level's labels cover the map, left on the left,
+    the right hemisphere the left's mirror image, and each SARM6 lobule inside its SARM5 / SARM4 / SARM3 parent."""
+    six = _atlas.macaque_flatmap("SARM6")
+    pts, faces, grey, lab6 = six
+    assert faces.min() == 0 and faces.max() == len(pts) - 1 and 0 <= grey.min() and grey.max() <= 1
+    names6 = _atlas.macaque_cerebellum_names("SARM6")[0]
+    assert sorted(np.unique(lab6).tolist()) == list(range(1, len(names6) + 1))
+    left = np.array([names6[k - 1].startswith("SL_") for k in lab6])
+    assert (pts[left, 0] < 0).all() and (pts[~left, 0] > 0).all()
+    # mirror: each left vertex has a right vertex at (-x, y) with the same lobule (the template is symmetric)
+    from scipy.spatial import cKDTree
+    d, j = cKDTree(pts[~left]).query(pts[left] * [-1, 1])
+    assert d.max() < 1e-3
+    assert [names6[k - 1][3:] for k in lab6[left]] == [names6[k - 1][3:] for k in lab6[~left][j]]
+    for atlas in ("SARM5", "SARM4", "SARM3"):
+        _p, _f, _g, lab = _atlas.macaque_flatmap(atlas)
+        names = _atlas.macaque_cerebellum_names(atlas)[0]
+        for k in np.unique(lab6):                               # one parent per lobule, on its side
+            parents = {names[i - 1] for i in np.unique(lab[lab6 == k])}
+            assert len(parents) == 1 and next(iter(parents))[:3] == names6[k - 1][:3]
+
+
+def test_macaque_map_renders_symmetric_values_symmetrically():
+    names = scmaps.cerebellum_regions("SARM6")
+    v = {n: (k % 21) - 10.0 for k, n in enumerate(names)}       # the same value on both sides
+    img = scmaps.cerebellum_map(v, atlas="SARM6", cmap="RdBu_r", vmin=-10, vmax=10, dpi=60)
+    assert img.ndim == 3 and img.shape[2] == 4 and (img[..., 3] > 0).mean() > 0.3
+    a = img[..., 3] > 0
+    cols = np.nonzero(a.any(0))[0]
+    mid = (cols.min() + cols.max()) / 2
+    assert abs(np.nonzero(a)[1].mean() - mid) < 2                  # the drawing is centred
+    flip = img[:, ::-1]
+    common = (img[..., 3] == 255) & (flip[..., 3] == 255)
+    assert np.abs(img[common, :3].astype(int) - flip[common, :3].astype(int)).mean() < 6
+    with pytest.raises(ValueError):
+        C.render_cerebellum(np.zeros((32, 3)), atlas="SARM6")
+
+
+# --- the solid style ----------------------------------------------------------
+
+def test_solid_style_keeps_every_region():
+    """The smoothing of the borders loses no region on any flatmap (SUIT's
+    flatmap has a 2-vertex region, D1R) and changes the outline little: the
+    solid silhouette is the suit style's."""
+    from scmaps import _solid
+    for atlas in scmaps.CEREBELLUM_ATLASES:
+        _sil, _edge, regions, borders = _solid.geometry(atlas)
+        assert len(regions) == C.n_regions(atlas) and all(regions) and borders, atlas
+    for atlas, n in (("NettekovenAsym32", 32), ("SARM5", 10)):
+        rgb = np.tile([0.3, 0.5, 0.7], (n, 1))
+        _M, _P, iou = _aligned(C.render_cerebellum(rgb, 0.75, dpi=60, atlas=atlas),
+                               C.render_cerebellum(rgb, dpi=60, atlas=atlas, style="solid"))
+        assert iou > 0.97, atlas
+
+
+def test_solid_style_draws_flat_colours_the_lines_and_the_outline():
+    from scipy.ndimage import binary_erosion
+    names = scmaps.cerebellum_regions("SARM5")
+    rgb = np.full((len(names), 3), np.nan)
+    rgb[[names.index("SL_PVCbCx"), names.index("SR_PVCbCx")]] = [0.8, 0.1, 0.1]
+    rgb[names.index("SL_LCbCx")] = [0.1, 0.2, 0.7]
+    from scmaps import _solid
+    canvas = dict(dpi=100, atlas="SARM5", fig_in=C.FLAT_FIG_IN, lim=C.FLAT_LIM)      # uncropped: one pixel grid
+    img = _solid.render_solid(rgb, **canvas)
+    plain = _solid.render_solid(rgb, **canvas, border=None, outline=None)
+
+    def share(im, c):
+        px = im[im[..., 3] == 255][:, :3].astype(int)
+        return (np.abs(px - np.round(np.asarray(c) * 255)).max(1) <= 1).mean()
+    for im in (img, plain):                         # unshaded colours; light grey without a value
+        assert share(im, [0.8, 0.1, 0.1]) > 0.05 and share(im, [0.1, 0.2, 0.7]) > 0.05
+        assert share(im, [0.85] * 3) > 0.4
+    assert share(img, [1.0] * 3) > 0.002 and share(plain, [1.0] * 3) == 0      # the white lines
+    a = plain[..., 3] > 0
+    rim = a & ~binary_erosion(a, iterations=2)
+    grey = rim & (np.abs(plain[..., :3].astype(int) - 217).max(-1) <= 2)    # the rim of the regions without a value
+    assert grey.sum() > 50 and img[grey, :3].mean() < plain[grey, :3].mean() - 10   # the grey outline over it
+
+
+def test_solid_style_renders_symmetric_values_symmetrically():
+    names = scmaps.cerebellum_regions("SARM6")
+    v = {n: (k % 21) - 10.0 for k, n in enumerate(names)}
+    img = scmaps.cerebellum_map(v, atlas="SARM6", cmap="RdBu_r", vmin=-10, vmax=10, dpi=60, style="solid")
+    flip = img[:, ::-1]
+    common = (img[..., 3] == 255) & (flip[..., 3] == 255)
+    assert common.mean() > 0.3
+    assert np.abs(img[common, :3].astype(int) - flip[common, :3].astype(int)).mean() < 6
+    with pytest.raises(ValueError):
+        C.render_cerebellum(np.zeros((42, 3)), atlas="SARM6", style="flat")

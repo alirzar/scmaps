@@ -1,6 +1,8 @@
 """The shipped atlas data (src/scmaps/data/, see its README for provenance):
-the 32 Tian S2 subcortical ROI surfaces, and SUIT's cerebellar flatmap with
-its underlay and the 32 Nettekoven Asym32 region labels."""
+the 32 Tian S2 subcortical ROI surfaces, SUIT's cerebellar flatmap with its
+underlay and the 32 Nettekoven Asym32 region labels, and the macaque
+cerebellar flatmap (data/macaque/, from NMT v2.1-sym) with its underlay and
+SARM's cerebellar regions at levels 3 to 6."""
 
 from functools import lru_cache
 from importlib import resources
@@ -86,21 +88,71 @@ def cerebellum_names():
     return tuple(str(n) for n in _cerebellum_npz()["names"])
 
 
-@lru_cache(maxsize=1)
-def flatmap():
-    """SUIT's flatmap: the 2-D points, the triangles, the underlay grey per
-    vertex as plotflatmap.m computes it (gray(256) indexed by
-    ceil((d - lo) / (hi - lo) * 256), clipped to 1-256), and the Nettekoven
-    label (1-32, current numbering) of every vertex."""
+def _flat(surf, shape):
+    """A flatmap's 2-D points, triangles and the underlay grey per vertex as
+    plotflatmap.m computes it (gray(256) indexed by ceil((d - lo) / (hi - lo)
+    * 256), clipped to 1-256)."""
     import nibabel as nib
-    with _path("FLAT.surf.gii").open("rb") as fh:
+    with _path(surf).open("rb") as fh:
         pts, faces = nib.GiftiImage.from_bytes(fh.read()).agg_data()
-    with _path("SUIT.shape.gii").open("rb") as fh:
+    with _path(shape).open("rb") as fh:
         under = np.asarray(nib.GiftiImage.from_bytes(fh.read()).agg_data(), float)
     lo, hi = UNDERSCALE
     idx = np.clip(np.ceil((under - lo) / (hi - lo) * UNDERMAP_N), 1, UNDERMAP_N)
-    grey = (idx - 1) / (UNDERMAP_N - 1)
+    return np.asarray(pts, float)[:, :2], np.asarray(faces, np.int64), (idx - 1) / (UNDERMAP_N - 1)
+
+
+@lru_cache(maxsize=1)
+def flatmap():
+    """SUIT's flatmap: the 2-D points, the triangles, the underlay grey per
+    vertex, and the Nettekoven label (1-32, current numbering) of every
+    vertex."""
+    pts, faces, grey = _flat("FLAT.surf.gii", "SUIT.shape.gii")
     lab = _cerebellum_npz()["labels"].astype(int)
     if not (len(lab) == len(pts) == len(grey)) or lab.min() < 1 or lab.max() > 32:
         raise AssertionError("flatmap geometry, underlay and labels do not line up")
-    return np.asarray(pts, float)[:, :2], np.asarray(faces, np.int64), grey, lab
+    return pts, faces, grey, lab
+
+
+MACAQUE_ATLASES = ("SARM3", "SARM4", "SARM5", "SARM6")   # SARM's cerebellar levels on the macaque flatmap
+
+
+@lru_cache(maxsize=1)
+def _macaque_npz():
+    with _path("macaque/cerebellum_labels.npz").open("rb") as fh:
+        z = np.load(fh)
+        return {k: z[k] for k in z.files}
+
+
+def _check_macaque(atlas):
+    if atlas not in MACAQUE_ATLASES:
+        raise ValueError(f"unknown macaque cerebellar atlas {atlas!r}; one of {MACAQUE_ATLASES}")
+
+
+@lru_cache(maxsize=None)
+def macaque_cerebellum_names(atlas):
+    """(names, full names) of a SARM level's cerebellar cortex regions on the
+    macaque flatmap: the left hemisphere's (SL_), then the right's (SR_), e.g.
+    "SL_Cb1V" ... "SR_Fl" for SARM6."""
+    _check_macaque(atlas)
+    z = _macaque_npz()
+    return tuple(str(n) for n in z[f"names_{atlas}"]), tuple(str(n) for n in z[f"full_{atlas}"])
+
+
+@lru_cache(maxsize=None)
+def macaque_flatmap(atlas):
+    """The macaque cerebellar flatmap (NMT v2.1-sym, tools/build_macaque_flatmap.py):
+    the 2-D points, the triangles, the underlay grey per vertex, and the label
+    of every vertex (1..n in `macaque_cerebellum_names(atlas)` order)."""
+    _check_macaque(atlas)
+    pts, faces, grey = _flat("macaque/FLAT.surf.gii", "macaque/NMT.shape.gii")
+    lab = _macaque_npz()[f"labels_{atlas}"].astype(int)
+    n = len(macaque_cerebellum_names(atlas)[0])
+    if not (len(lab) == len(pts) == len(grey)) or lab.min() < 1 or lab.max() > n:
+        raise AssertionError("macaque flatmap geometry, underlay and labels do not line up")
+    return pts, faces, grey, lab
+
+
+def macaque_mm_per_unit():
+    """Millimetres of the template's cerebellar surface per macaque flatmap unit."""
+    return float(_macaque_npz()["mm_per_unit"])

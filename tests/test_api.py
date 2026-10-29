@@ -20,8 +20,9 @@ def calls(monkeypatch):
         rec["subcortex"] = dict(rgb=np.asarray(rgb), layout=layout, dpi=dpi, nan_rgb=nan_rgb)
         return np.zeros((4, 4, 4), np.uint8)
 
-    def cer(rgb, alphas, dpi):
-        rec["cerebellum"] = dict(rgb=np.asarray(rgb), alphas=np.asarray(alphas), dpi=dpi)
+    def cer(rgb, alphas, dpi, atlas="NettekovenAsym32", style="suit", nan_rgb=None, border=None, outline=None):
+        rec["cerebellum"] = dict(rgb=np.asarray(rgb), alphas=np.asarray(alphas), dpi=dpi, atlas=atlas, style=style,
+                                 nan_rgb=nan_rgb, border=border, outline=outline)
         return np.zeros((4, 4, 4), np.uint8)
     monkeypatch.setattr(maps, "render_subcortex", sub)
     monkeypatch.setattr(maps, "render_cerebellum", cer)
@@ -137,3 +138,47 @@ def test_plot_helpers_draw_and_return_a_mappable(calls):
     fig.colorbar(sm, ax=b)
     assert scmaps.plot_cerebellum(colors="red", ax=b) is None
     plt.close(fig)
+
+
+def test_macaque_atlases_and_their_regions():
+    assert scmaps.CEREBELLUM_ATLASES == ("NettekovenAsym32", "SARM3", "SARM4", "SARM5", "SARM6")
+    assert scmaps.cerebellum_regions() == scmaps.CEREBELLUM_REGIONS
+    per_hemisphere = {"SARM3": 1, "SARM4": 4, "SARM5": 5, "SARM6": 21}
+    for atlas, n in per_hemisphere.items():
+        names = scmaps.cerebellum_regions(atlas)
+        assert len(names) == 2 * n
+        assert all(r.startswith("SL_") for r in names[:n]) and all(r.startswith("SR_") for r in names[n:])
+        assert [r[3:] for r in names[:n]] == [r[3:] for r in names[n:]]
+    assert scmaps.cerebellum_regions("SARM3") == ("SL_CbCx", "SR_CbCx")
+    six = scmaps.cerebellum_regions("SARM6")
+    assert six[:10] == tuple(f"SL_Cb{k}V" for k in range(1, 11)) and six[20] == "SL_Fl"
+    with pytest.raises(ValueError):
+        scmaps.cerebellum_regions("SARM2")
+
+
+def test_macaque_values_by_name(calls):
+    scmaps.cerebellum_map({"SL_PVCbCx": 1.0, "SR_AVCbCx": -1.0}, atlas="SARM5", cmap="RdBu_r", vmin=-1, vmax=1)
+    got = calls["cerebellum"]
+    names = scmaps.cerebellum_regions("SARM5")
+    assert got["atlas"] == "SARM5" and got["rgb"].shape == (len(names), 3) and got["alphas"].shape == (len(names),)
+    cm = matplotlib.colormaps["RdBu_r"]
+    np.testing.assert_allclose(got["rgb"][names.index("SL_PVCbCx")], cm(1.0)[:3])
+    np.testing.assert_allclose(got["rgb"][names.index("SR_AVCbCx")], cm(0.0)[:3])
+    assert np.isnan(np.delete(got["rgb"], [names.index("SL_PVCbCx"), names.index("SR_AVCbCx")], axis=0)).all()
+    with pytest.raises(KeyError):
+        scmaps.cerebellum_map({"M1L": 1.0}, atlas="SARM6")         # a human region on the macaque map
+    with pytest.raises(ValueError):
+        scmaps.cerebellum_map(np.zeros(32), atlas="SARM6")        # 42 regions
+
+
+def test_solid_style_and_its_colours_are_passed_on(calls):
+    scmaps.cerebellum_map(np.zeros(10), atlas="SARM5")
+    got = calls["cerebellum"]
+    assert got["style"] == "suit" and scmaps.CEREBELLUM_STYLES == ("suit", "solid")
+    scmaps.cerebellum_map(np.zeros(10), atlas="SARM5", style="solid")
+    got = calls["cerebellum"]
+    assert got["style"] == "solid" and got["nan_rgb"] == (0.85, 0.85, 0.85)
+    assert got["border"] == (1.0, 1.0, 1.0) and got["outline"] == pytest.approx((166 / 255,) * 3)
+    scmaps.cerebellum_map(np.zeros(32), style="solid", nan_color="black", border_color=None, outline_color="red")
+    got = calls["cerebellum"]
+    assert (got["nan_rgb"], got["border"], got["outline"]) == ((0.0, 0.0, 0.0), None, (1.0, 0.0, 0.0))

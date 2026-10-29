@@ -316,3 +316,59 @@ def test_solid_style_renders_symmetric_values_symmetrically():
     assert np.abs(img[common, :3].astype(int) - flip[common, :3].astype(int)).mean() < 6
     with pytest.raises(ValueError):
         C.render_cerebellum(np.zeros((42, 3)), atlas="SARM6", style="flat")
+
+
+# --- the macaque subcortex -----------------------------------------------------
+
+def test_macaque_subcortex_surfaces_line_up():
+    """tools/build_macaque_subcortex.py: every region of each level a surface, the right hemisphere the left's mirror,
+    no face across two regions, the left left of the midline, every region inside a level-3 region drawn."""
+    three = {r[3:] for r in _atlas.macaque_subcortex_names("SARM3")[0]}
+    for atlas, n in {"SARM3": 31, "SARM4": 64, "SARM5": 156, "SARM6": 180}.items():
+        names, full, parents = _atlas.macaque_subcortex_names(atlas)
+        assert len(names) == len(full) == len(parents) == 2 * n
+        (PL, FL, rL), (PR, FR, rR) = (_atlas.macaque_subcortex_meshes(atlas)[h] for h in "LR")
+        assert sorted(np.unique(rL).tolist()) == list(range(1, n + 1))
+        assert sorted(np.unique(rR).tolist()) == list(range(n + 1, 2 * n + 1))
+        np.testing.assert_array_equal(PR, PL * [-1, 1, 1])
+        np.testing.assert_array_equal(FR, FL[:, ::-1])
+        assert (rL[FL] == rL[FL[:, :1]]).all() and (PL[:, 0] < 0).all()
+        assert set(parents) <= three and not set(parents) & {"CbCx", "DCb", "wmCB", "Pit"}
+        assert set(_atlas.sarm_names(atlas)) >= set(names)
+
+
+def test_macaque_subcortex_renders_mirrored_views():
+    """The grid layout: left lateral | right lateral over left medial | right medial, each hemisphere centred in its
+    own box, so the drawing's silhouette is its own mirror image (the light, right of the camera, is not)."""
+    names = scmaps.subcortex_regions("SARM3")
+    img = scmaps.subcortex_map(np.ones(len(names)), atlas="SARM3", dpi=60)
+    a = img[..., 3] > 127
+    flip = a[:, ::-1]
+    assert (a & flip).sum() / (a | flip).sum() > 0.97
+    with pytest.raises(ValueError):
+        S.render_subcortex(np.zeros((32, 3)), cut=True)                    # Tian S2: no cut-away
+    with pytest.raises(ValueError):
+        S.render_subcortex(np.zeros((32, 3)), atlas="SARM3")               # 62 regions
+
+
+def test_macaque_cut_away_leaves_out_the_outer_and_the_midline_regions():
+    names, _full, parents = _atlas.macaque_subcortex_names("SARM3")
+    grey = np.array([0.82] * 3)
+
+    def red(group):
+        rgb = np.tile([0.2, 0.4, 0.9], (len(names), 1))
+        rgb[[k for k, p in enumerate(parents) if p in group]] = [0.9, 0.1, 0.1]
+        return rgb
+
+    def reds(img):
+        f = img[img[..., 3] == 255][:, :3].astype(float) / 255
+        return int((f[:, 0] > f[:, 2] + 0.2).sum())
+    for (hemi, side), group in ((("L", -1), S.OUTER), (("R", +1), S.OUTER), (("L", +1), S.MIDLINE), (("R", -1), S.MIDLINE)):
+        rgb = red(group)                                    # a lateral view (first two) or a medial one
+        assert reds(S._tile(hemi, side, rgb, 120, 90, grey, "SARM3", cut=False)) > 50
+        assert reds(S._tile(hemi, side, rgb, 120, 90, grey, "SARM3", cut=True)) == 0
+    five = scmaps.subcortex_regions("SARM5")                    # level 5: every region inside a cut level-3 region
+    img = scmaps.subcortex_map(np.ones(len(five)), atlas="SARM5", layout="left", cut=True, dpi=60)
+    whole = scmaps.subcortex_map(np.ones(len(five)), atlas="SARM5", layout="left", dpi=60)
+    assert img.shape[0] > whole.shape[0] * 1.5                     # the cut-away row below the whole one
+

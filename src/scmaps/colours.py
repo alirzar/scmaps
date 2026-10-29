@@ -9,11 +9,18 @@ Regions are in plotting order:
   left, 17-32 right (`CEREBELLUM_REGIONS`, "M1L" ... "S5L", "M1R" ... "S5R");
 * macaque cerebellum: SARM's cerebellar cortex regions at level 3, 4, 5 or 6,
   the left hemisphere's, then the right's (`cerebellum_regions("SARM6")`,
-  "SL_Cb1V" ... "SR_Fl"; `MACAQUE_CEREBELLUM_REGIONS[atlas]`).
+  "SL_Cb1V" ... "SR_Fl"; `MACAQUE_CEREBELLUM_REGIONS[atlas]`);
+* macaque subcortex: SARM's other regions at that level but the pituitary and
+  the cerebellar nuclei and white matter, the left's in SARM's order, then the
+  right's (`subcortex_regions("SARM3")`, "SL_LPal" ... "SR_VMed";
+  `MACAQUE_SUBCORTEX_REGIONS[atlas]`).
 
 Every function taking `values` accepts a sequence of one value per region in
 that order, or a mapping (dict, pandas Series) from region name to value; a
-region missing from a mapping, or NaN, has no value.
+region missing from a mapping, or NaN, has no value. A SARM mapping may hold
+the whole level: a name of the level that the map does not draw (the
+cerebellum's on the subcortical map, the subcortex's on the cerebellar one,
+the pituitary) is passed over; a name not in SARM is an error.
 
 Data extracted with the atlas's original numbering (atlas files from before
 November 2023), where today's S5 was A4 with label 8 (24 on the right) and
@@ -27,11 +34,13 @@ import numpy as np
 from matplotlib import colormaps
 from matplotlib.colors import Colormap, Normalize, is_color_like, to_rgb
 
-from ._atlas import MACAQUE_ATLASES, cerebellum_names, macaque_cerebellum_names, subcortex_names
+from ._atlas import (MACAQUE_ATLASES, cerebellum_names, macaque_cerebellum_names, macaque_subcortex_names, sarm_names,
+                     subcortex_names)
 
 SUBCORTEX_REGIONS = subcortex_names()
 CEREBELLUM_REGIONS = cerebellum_names()
 MACAQUE_CEREBELLUM_REGIONS = {a: macaque_cerebellum_names(a)[0] for a in MACAQUE_ATLASES}
+MACAQUE_SUBCORTEX_REGIONS = {a: macaque_subcortex_names(a)[0] for a in MACAQUE_ATLASES}
 # the regions of labels 1-32 in the atlas's original release, by today's names
 CEREBELLUM_REGIONS_ORIGINAL = tuple(f"{r}{h}" for h in "LR" for r in (
     "M1", "M2", "M3", "M4", "A1", "A2", "A3", "S5", "D1", "D2", "D3", "D4", "S1", "S2", "S3", "S4"))
@@ -43,8 +52,8 @@ def _is_mapping(x):
     return isinstance(x, Mapping) or (hasattr(x, "index") and hasattr(x, "items"))
 
 
-def _by_name(mapping, names, convert, empty):
-    unknown = set(mapping) - set(names)
+def _by_name(mapping, names, convert, empty, skip=frozenset()):
+    unknown = set(mapping) - set(names) - set(skip)
     if unknown:
         raise KeyError(f"unknown region name(s) {sorted(map(str, unknown))}; "
                        f"expected names like {names[0]!r}")
@@ -63,27 +72,47 @@ def cerebellum_regions(atlas="NettekovenAsym32"):
                      f"{('NettekovenAsym32', *MACAQUE_CEREBELLUM_REGIONS)}")
 
 
-def as_values(values, names):
-    """One float per region of `names`, in plotting order (NaN = no value)."""
+def subcortex_regions(atlas="TianS2"):
+    """The region names of a subcortical atlas, in plotting order:
+    `SUBCORTEX_REGIONS` for TianS2 (human), SARM's for "SARM3" ... "SARM6"
+    (macaque)."""
+    if atlas == "TianS2":
+        return SUBCORTEX_REGIONS
+    if atlas in MACAQUE_SUBCORTEX_REGIONS:
+        return MACAQUE_SUBCORTEX_REGIONS[atlas]
+    raise ValueError(f"unknown subcortical atlas {atlas!r}; one of {('TianS2', *MACAQUE_SUBCORTEX_REGIONS)}")
+
+
+def elsewhere(atlas, names):
+    """The names a map of `names` passes over in a mapping: for a SARM level,
+    its regions the map does not draw; none for the human atlases."""
+    if atlas in MACAQUE_ATLASES:
+        return frozenset(sarm_names(atlas)) - set(names)
+    return frozenset()
+
+
+def as_values(values, names, skip=frozenset()):
+    """One float per region of `names`, in plotting order (NaN = no value);
+    in a mapping, names in `skip` are passed over."""
     if values is None:
         return np.full(len(names), np.nan)
     if _is_mapping(values):
-        values = _by_name(dict(values.items()), names, float, np.nan)
+        values = _by_name(dict(values.items()), names, float, np.nan, skip)
     v = np.asarray(values, float).ravel()
     if v.shape != (len(names),):
         raise ValueError(f"expected {len(names)} values, got {v.size}")
     return v
 
 
-def as_mask(regions, names):
+def as_mask(regions, names, skip=frozenset()):
     """One bool per region of `names`, from a boolean sequence of that length,
-    or an iterable of region names."""
+    or an iterable of region names (names in `skip` passed over)."""
     if regions is None:
         return np.zeros(len(names), bool)
     regions = list(regions)
     if len(regions) == len(names) and all(isinstance(r, (bool, np.bool_)) for r in regions):
         return np.asarray(regions, bool)
-    unknown = set(regions) - set(names)
+    unknown = set(regions) - set(names) - set(skip)
     if unknown:
         raise KeyError(f"unknown region name(s) {sorted(map(str, unknown))}")
     return np.isin(np.asarray(names), regions)
@@ -95,12 +124,12 @@ def _rgb_or_nan(c):
     return to_rgb(c)
 
 
-def as_colours(colours, names):
+def as_colours(colours, names, skip=frozenset()):
     """n x 3 RGB (one row per region of `names`) from one matplotlib colour, one
     colour per region (None = no value) or a mapping from region name to
-    colour."""
+    colour (names in `skip` passed over)."""
     if _is_mapping(colours):
-        return np.asarray(_by_name(dict(colours.items()), names, _rgb_or_nan, (np.nan,) * 3),
+        return np.asarray(_by_name(dict(colours.items()), names, _rgb_or_nan, (np.nan,) * 3, skip),
                           float)
     if isinstance(colours, str) or (is_color_like(colours) and np.ndim(colours) == 1):
         return np.tile(to_rgb(colours), (len(names), 1))

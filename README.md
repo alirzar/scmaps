@@ -6,10 +6,13 @@ Subcortical and cerebellar brain maps in Python:
   Scale II), drawn as 3-D surfaces;
 * the 32 regions of the **Nettekoven** asymmetric cerebellar atlas
   (NettekovenAsym32), drawn on **SUIT's flatmap**;
-* for the **macaque**, the cerebellar regions of **SARM** (levels 3 to 6,
-  up to its 21 lobules per hemisphere), drawn on a **macaque cerebellar
-  flatmap** built from the NMT v2.1-sym template and shaded as SUIT's is
-  (see [Macaque cerebellum](#macaque-cerebellum)).
+* for the **macaque**, the regions of **SARM** (levels 3 to 6) on surfaces
+  built from the NMT v2.1-sym template: its subcortical regions as 3-D
+  surfaces drawn as the human ones are, with cut-away views for the regions
+  SARM nests (see [Macaque subcortex](#macaque-subcortex)), and its
+  cerebellar regions (up to its 21 lobules per hemisphere) on a **macaque
+  cerebellar flatmap** shaded as SUIT's is (see
+  [Macaque cerebellum](#macaque-cerebellum)).
 
 Either flatmap can also be drawn in a **solid** style: flat colours on light
 grey, white lines between the regions, a grey outline
@@ -88,9 +91,11 @@ for no value), or a mapping from name to colour. For example,
 | highlight | `highlight=[names]`, `highlight_color=` (default gold) | the same, drawn without the underlay's shading (e.g. a seed) |
 | other | `nan_color=` (default grey 0.82) | `alpha=` (default 0.75): how much underlay shading shows through, one value or one per region |
 | style | | `style=`: `"suit"` (default) or `"solid"`; for solid, `nan_color=` (default grey 0.85), `border_color=` (white) and `outline_color=` (grey), `None` for no lines |
+| atlas | `atlas=`: `"TianS2"` (default) or `"SARM3"` ... `"SARM6"` (macaque) | `atlas=`: `"NettekovenAsym32"` (default) or `"SARM3"` ... `"SARM6"` (macaque) |
+| cut | `cut=True` (SARM): the layout's views again below, cut away | |
 
 The renderers take RGB directly as well:
-`scmaps.render_subcortex(rgb32x3, layout, dpi)` and
+`scmaps.render_subcortex(rgbNx3, layout, dpi, atlas=..., cut=...)` and
 `scmaps.render_cerebellum(rgbNx3, alphas, dpi, atlas=..., style=...)`.
 
 ## Solid style
@@ -114,6 +119,62 @@ area. On SUIT's flatmap it is 0.2 units, because that map has tiny regions
 (D1R is 2 vertices) and every region is kept. The shapes are computed once
 per atlas and drawn by matplotlib rather than VTK, so this style needs no
 OpenGL.
+
+## Macaque subcortex
+
+```python
+# SARM level 3: 31 regions per hemisphere, "SL_LPal" ... "SL_VMed", then "SR_..."
+img = scmaps.subcortex_map(values, atlas="SARM3", layout="row", cut=True,
+                           cmap="RdBu_r", vmin=-2, vmax=2)
+scmaps.subcortex_regions("SARM5")   # the region names of a level, in plotting order
+```
+
+`atlas=` picks the parcellation and its surfaces: `"TianS2"` (human, the
+default) or SARM's subcortex at level `"SARM3"` (31 regions per hemisphere),
+`"SARM4"` (64), `"SARM5"` (156) or `"SARM6"` (180). Every SARM region of the
+level is drawn except the cerebellum's (its cortex is on the
+[cerebellar flatmap](#macaque-cerebellum); its nuclei and white matter would
+cover the brainstem) and the pituitary. Names are SARM's, so values extracted
+with SARM pass by name as they are. A mapping may hold the whole level: the
+subcortical and the cerebellar map each pass over the regions they do not
+draw. A name of another level, or not in SARM, is an error.
+
+SARM's regions nest. From the side, the striatum hides the pallidum and the
+thalamus, and the reticular thalamus wraps around the thalamus. `cut=True`
+draws the layout's views again below the whole ones, cut away:
+
+* the lateral views without the outer structures: lateral pallium, striatum,
+  reticular thalamus, hippocampal formation, pallial amygdala, ventral
+  pallium;
+* the medial views without the midline ones: midline thalamus, diagonal
+  subpallium, preoptic complex, tuberal and posterior hypothalamus, medial
+  midbrain, fornix, epithalamus.
+
+At levels 4 to 6 the cuts take every region inside those. Everything else
+works as for the human map.
+
+![macaque subcortex](examples/macaque_subcortex.png)
+
+**How the surfaces are made** (`tools/build_macaque_subcortex.py`, from
+AFNI's NMT v2.1-sym). They are built to read like the human surfaces, which
+are MATLAB's `boundary(..., 0.5)` of Tian S2's 2 mm voxel centres: simple
+shapes, two touching regions one voxel apart. The steps:
+
+1. SARM's labels are taken to a 0.5 mm grid; each 2 × 2 × 2 block of the
+   0.25 mm template takes its most frequent label.
+2. Every region's surface is extracted at once with surface nets (VTK).
+3. Each surface is smoothed and simplified to 15 % of its triangles.
+4. Each surface is pulled in half a voxel, so touching regions sit 0.5 mm
+   apart.
+
+The right hemisphere is the left's mirror image; the template is symmetric.
+
+The 0.5 mm grid is coarse enough for simple shapes and fine enough for level
+5's small nuclei, which break into shards on 1 mm. Surface nets keeps the
+regions' shapes, where `boundary()`'s alpha shape would fill them in: the
+striatum, the fornix and the reticular thalamus become blobs. The surfaces
+place the regions; they are not the template's exact boundaries. Unlike the
+human map, this one has no MATLAB render to be checked against.
 
 ## Macaque cerebellum
 
@@ -216,11 +277,11 @@ and the other sources ask for attribution. Full references are in `NOTICE`.
   Also Diedrichsen J (2006), *NeuroImage* 33(1): 127–138, for the SUIT
   template, and Wang Y, et al. (2026), *Imaging Neuroscience* 4,
   IMAG.a.1323, for SUITPy, the source of the flatmap files.
-* **Macaque cerebellum:** Hartig R, et al. (2021). Subcortical Atlas of the
-  Rhesus Macaque (SARM) for neuroimaging. *NeuroImage* 235: 117996; and Jung
-  B, et al. (2021). A comprehensive macaque fMRI pipeline and hierarchical
-  atlas. *NeuroImage* 235: 117997, for the NMT v2 template the flatmap is
-  built from.
+* **Macaque subcortex and cerebellum:** Hartig R, et al. (2021). Subcortical
+  Atlas of the Rhesus Macaque (SARM) for neuroimaging. *NeuroImage* 235:
+  117996; and Jung B, et al. (2021). A comprehensive macaque fMRI pipeline
+  and hierarchical atlas. *NeuroImage* 235: 117997, for the NMT v2 template
+  the surfaces and the flatmap are built from.
 
 ## Licence
 
@@ -232,4 +293,4 @@ terms of its sources (`NOTICE`):
 | SUIT flatmap and underlay | MIT with an acknowledgement clause, from SUITPy (`LICENSES/SUITPy.txt`) |
 | Nettekoven cerebellar labels | CC BY (attribution) |
 | Tian S2 subcortical surfaces | Melbourne Subcortex Atlas License: free use and distribution; publications must cite Tian et al. (2020) |
-| macaque flatmap, underlay and SARM labels | derived from AFNI's NMT v2.1-sym and its SARM; please cite Hartig et al. (2021) and Jung et al. (2021) |
+| macaque subcortical surfaces, flatmap, underlay and SARM labels | derived from AFNI's NMT v2.1-sym and its SARM; please cite Hartig et al. (2021) and Jung et al. (2021) |

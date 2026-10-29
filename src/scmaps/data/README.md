@@ -11,6 +11,7 @@ citations and licences.
 | `SUIT.shape.gii` | the flatmap's shading underlay | SUITPy, `SUITPy/surfaces/SUIT.shape.gii` |
 | `macaque/FLAT.surf.gii` | the macaque cerebellar flatmap: 23,772 vertices on a 0.25 mm grid of the unfolded cerebellar cortex, both hemispheres, in flat units spanning about ±90 like SUIT's (`mm_per_unit` in the labels file) | `tools/build_macaque_flatmap.py`, from AFNI's NMT v2.1-sym (its tissue segmentation and SARM) |
 | `macaque/NMT.shape.gii` | its shading underlay: the depth below the cerebellar envelope, with SUIT.shape.gii's value distribution | the same script |
+| `macaque/subcortex.npz` | SARM's subcortical regions at levels 3-6 (all but the cerebellum's and the pituitary), the left hemisphere's surfaces: per level its points (`points_SARM*`, mm in NMT v2.1-sym), triangles (`faces_SARM*`), each point's region (`point_region_SARM*`, 1..n), the regions' names, full names and level-3 parents (`names_SARM*`, `full_SARM*`, `parent3_SARM*`), the grid each was built on (`grid_SARM*`), every name of the level (`level_SARM*`), the build's parameters (`params`) and the sha256 of the NMT inputs (`inputs_sha256`); the right hemisphere is the left mirrored at x = 0 | `tools/build_macaque_subcortex.py`, from AFNI's NMT v2.1-sym (its SARM) |
 | `macaque/cerebellum_labels.npz` | each vertex's SARM cerebellar cortex region at levels 3-6 (`labels_SARM3` ... `labels_SARM6`, 1..n), the regions' names (`names_SARM*`: SL_ left, then SR_ right) and full names (`full_SARM*`), `mm_per_unit`, and the sha256 of the NMT inputs (`inputs_sha256`) | the same script |
 
 The conversion is lossless: the meshes and the frame built from the `.npz`
@@ -24,7 +25,9 @@ sha256:
     6d47d2b91ab9eae7f93070a4b067d4ec7869e7ddd3d48d4f475de95ad86c717d  macaque/cerebellum_labels.npz
     4b23e2b6fe11b76e1401381da0ce1db8814f171533bae7fbd1a992c6c55abddd  macaque/FLAT.surf.gii
     9d1bbafcfacb430a38b28f7891b36f93f800655303ee939061f548404cb70a38  macaque/NMT.shape.gii
+    d48e02159c52d51bf849a34a2cca4dbcf7003aa63de735838714566295eb6d6d  macaque/subcortex.npz
 
 Rebuild the macaque files with `python tools/build_macaque_flatmap.py NMT_ROOT`
-(NMT_ROOT: the NMT v2.1-sym distribution, with `NMT_v2.1_sym/` and
-`tables_SARM/`); it needs scipy besides the package's own dependencies.
+and `python tools/build_macaque_subcortex.py NMT_ROOT` (NMT_ROOT: the NMT
+v2.1-sym distribution, with `NMT_v2.1_sym/` and `tables_SARM/`); they need
+scipy besides the package's own dependencies.

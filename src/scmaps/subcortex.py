@@ -1,4 +1,6 @@
-"""The 32 Tian S2 subcortical ROIs drawn as plotSubcortex.m draws them.
+"""The 32 Tian S2 subcortical ROIs drawn as plotSubcortex.m draws them; and,
+the same way, SARM's subcortical regions of the macaque (levels 3 to 6, on
+surfaces built from NMT v2.1-sym: tools/build_macaque_subcortex.py).
 
 The ROI surfaces (MATLAB's `boundary(..., 0.5)` of each ROI's voxels) in
 plotSubcortex.m's views and geometry: per layout the same hemisphere / side
@@ -15,11 +17,18 @@ BackFaceLighting 'reverselit', the camera at CAM_DIST x the box's
 half-diagonal, `camlight` a LOCAL light LIGHT_AZ right and LIGHT_EL up of the
 camera at the camera's distance, and `material dull` = AMBIENT + DIFFUSE x cos,
 no specular. An ROI without a value is grey (GREY).
+
+SARM's regions nest: from the side the striatum hides the pallidum and the
+thalamus, the reticular thalamus wraps the thalamus. `cut=True` adds the same
+views cut away below the whole ones: the lateral views without SARM's outer
+level-3 structures (OUTER), the medial views without its midline ones
+(MIDLINE); at levels 4 to 6, every region inside them.
 """
 
 import numpy as np
 
-from ._atlas import subcortex_frame, subcortex_meshes
+from ._atlas import (MACAQUE_ATLASES, macaque_subcortex_frame, macaque_subcortex_meshes, macaque_subcortex_names,
+                     subcortex_frame, subcortex_meshes)
 from ._vtk import crop, draw_unlit
 
 GREY = 0.82                 # an ROI without a value
@@ -35,6 +44,28 @@ VIEWS = {"row": ([("L", -1), ("L", +1), ("R", -1), ("R", +1)], 1, 4),
          "lateral": ([("L", -1), ("R", +1)], 1, 2),
          "left": ([("L", -1)], 1, 1)}
 LAYOUTS = tuple(VIEWS)
+HUMAN = "TianS2"
+ATLASES = (HUMAN, *MACAQUE_ATLASES)
+OUTER = ("LPal", "Str", "Rt", "HF", "pAmy", "VPal")     # SARM level 3: what a lateral cut-away view leaves out
+MIDLINE = ("MLThal", "DSP", "POC", "THy", "PHy", "MMid", "f", "EpiThal")   # ... and a medial one
+
+
+def _meshes(atlas):
+    if atlas == HUMAN:
+        return subcortex_meshes()
+    if atlas in MACAQUE_ATLASES:
+        return macaque_subcortex_meshes(atlas)
+    raise ValueError(f"unknown subcortical atlas {atlas!r}; one of {ATLASES}")
+
+
+def _frame(atlas):
+    return subcortex_frame() if atlas == HUMAN else macaque_subcortex_frame(atlas)
+
+
+def n_regions(atlas=HUMAN):
+    """The number of regions of a subcortical atlas (32 for Tian S2)."""
+    _meshes(atlas)
+    return 32 if atlas == HUMAN else len(macaque_subcortex_names(atlas)[0])
 
 
 def vertex_normals(pts, faces):
@@ -49,11 +80,14 @@ def vertex_normals(pts, faces):
     return vn / np.maximum(np.linalg.norm(vn, axis=1, keepdims=True), 1e-12)
 
 
-def light_position(centre, side):
+def light_position(centre, side, half=None):
     """Where MATLAB's `camlight` (right) puts its local light for a camera on
     the x axis (side -1: at -x) looking at `centre`: LIGHT_AZ right and LIGHT_EL
-    up of the camera, at the camera's distance."""
-    _ctr, half = subcortex_frame()
+    up of the camera, at the camera's distance (CAM_DIST x the frame's
+    half-diagonal; `half`: the frame's half-extents, the human one's by
+    default)."""
+    if half is None:
+        _ctr, half = subcortex_frame()
     toward = np.array([float(side), 0.0, 0.0])          # target -> camera
     up = np.array([0.0, 0.0, 1.0])
     right = np.cross(-toward, up)
@@ -62,46 +96,67 @@ def light_position(centre, side):
     return np.asarray(centre, float) + CAM_DIST * np.linalg.norm(half) * ldir
 
 
-def lit_colours(pts, faces, rgb, centre, side):
+def lit_colours(pts, faces, rgb, centre, side, half=None):
     """MATLAB's gouraud lighting at every vertex: a normal facing away from the
     camera is reversed ('reverselit'), the light is a point (`light_position`),
     colour x (AMBIENT + DIFFUSE x cos), clipped to [0, 1]."""
     toward = np.array([float(side), 0.0, 0.0])
     vn = vertex_normals(pts, faces)
     vn = np.where((vn @ toward)[:, None] < 0, -vn, vn)
-    L = light_position(centre, side) - pts
+    L = light_position(centre, side, half) - pts
     L /= np.linalg.norm(L, axis=1, keepdims=True)
     cos = np.clip((vn * L).sum(axis=1), 0.0, None)
     return np.clip(np.asarray(rgb, float) * (AMBIENT + DIFFUSE * cos)[:, None], 0.0, 1.0)
 
 
-def _tile(hemi, side, rgb32, tile_w, tile_h, nan_rgb):
-    pts, faces, roi = subcortex_meshes()[hemi]
-    ctr, half = subcortex_frame()
-    col = rgb32[roi - 1].copy()
+def _left_out(atlas, hemi, side):
+    """The region positions (1-based) a cut-away view leaves out: OUTER from a
+    lateral view, MIDLINE from a medial one (by each region's level-3 parent)."""
+    lateral = (hemi == "L") == (side < 0)
+    drop = OUTER if lateral else MIDLINE
+    return np.array([k + 1 for k, p in enumerate(macaque_subcortex_names(atlas)[2]) if p in drop], int)
+
+
+def _tile(hemi, side, rgb, tile_w, tile_h, nan_rgb, atlas=HUMAN, cut=False):
+    pts, faces, roi = _meshes(atlas)[hemi]
+    ctr, half = _frame(atlas)
+    if cut:                                              # the regions are separate surfaces: a face is in or out whole
+        keep = ~np.isin(roi, _left_out(atlas, hemi, side))
+        faces = faces[keep[faces].all(axis=1)]
+        new = np.cumsum(keep) - 1
+        pts, roi, faces = pts[keep], roi[keep], new[faces]
+    col = rgb[roi - 1].copy()
     col[np.isnan(col).any(axis=1)] = nan_rgb
-    col = lit_colours(pts, faces, col, ctr[hemi], side)
+    col = lit_colours(pts, faces, col, ctr[hemi], side, None if atlas == HUMAN else half)
     c = ctr[hemi]
     position = (c[0] + side * CAM_DIST * np.linalg.norm(half), c[1], c[2])
     return draw_unlit(pts, faces, col, tile_w, tile_h, focal=c, position=position,
                       view_up=(0, 0, 1), half_height=half[2])
 
 
-def render_subcortex(rgb, layout="grid", dpi=300, nan_rgb=(GREY, GREY, GREY)):
+def render_subcortex(rgb, layout="grid", dpi=300, nan_rgb=(GREY, GREY, GREY), atlas=HUMAN, cut=False):
     """RGBA image (uint8, transparent background, cropped to the drawing) of
-    the 32 ROIs coloured `rgb` (32 x 3 in plotting order, NaN rows = no value,
-    drawn `nan_rgb`) in `layout` (row | grid | lateral | left), the tiles edge
-    to edge, each TILE_IN inches tall at `dpi`."""
+    the atlas's n regions coloured `rgb` (n x 3 in plotting order, NaN rows =
+    no value, drawn `nan_rgb`) in `layout` (row | grid | lateral | left), the
+    tiles edge to edge, each TILE_IN inches tall at `dpi`. `cut` (SARM): the
+    layout's views again below, cut away."""
     if layout not in VIEWS:
         raise ValueError(f"unknown subcortex layout {layout!r}; one of {LAYOUTS}")
-    rgb32 = np.asarray(rgb, float).reshape(32, 3)
+    n = n_regions(atlas)
+    if cut and atlas == HUMAN:
+        raise ValueError("cut-away views are SARM's (its regions nest); Tian S2's ROIs need none")
+    rgb = np.asarray(rgb, float).reshape(-1, 3)
+    if len(rgb) != n:
+        raise ValueError(f"{atlas}: expected {n} region colours, got {len(rgb)}")
     views, nr, nc = VIEWS[layout]
-    _ctr, half = subcortex_frame()
+    _ctr, half = _frame(atlas)
     tile_h = int(round(TILE_IN * dpi))
     tile_w = int(round(tile_h * half[1] / half[2]))      # a side view shows y by z
-    canvas = np.zeros((nr * tile_h, nc * tile_w, 4), np.uint8)
-    for t, (hemi, side) in enumerate(views):
-        r, c = divmod(t, nc)
-        canvas[r * tile_h:(r + 1) * tile_h, c * tile_w:(c + 1) * tile_w] = _tile(
-            hemi, side, rgb32, tile_w, tile_h, np.asarray(nan_rgb, float))
+    canvas = np.zeros(((2 if cut else 1) * nr * tile_h, nc * tile_w, 4), np.uint8)
+    for block, cut_away in enumerate((False, True) if cut else (False,)):
+        for t, (hemi, side) in enumerate(views):
+            r, c = divmod(t, nc)
+            r += block * nr
+            canvas[r * tile_h:(r + 1) * tile_h, c * tile_w:(c + 1) * tile_w] = _tile(
+                hemi, side, rgb, tile_w, tile_h, np.asarray(nan_rgb, float), atlas, cut_away)
     return crop(canvas)

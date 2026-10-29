@@ -1,8 +1,9 @@
 """The shipped atlas data (src/scmaps/data/, see its README for provenance):
 the 32 Tian S2 subcortical ROI surfaces, SUIT's cerebellar flatmap with its
-underlay and the 32 Nettekoven Asym32 region labels, and the macaque
-cerebellar flatmap (data/macaque/, from NMT v2.1-sym) with its underlay and
-SARM's cerebellar regions at levels 3 to 6."""
+underlay and the 32 Nettekoven Asym32 region labels; and, from NMT v2.1-sym
+and its SARM atlas (data/macaque/), the macaque cerebellar flatmap with its
+underlay and SARM's cerebellar regions at levels 3 to 6, and the surfaces of
+SARM's other subcortical regions at those levels."""
 
 from functools import lru_cache
 from importlib import resources
@@ -13,6 +14,7 @@ import numpy as np
 UNDERSCALE = (-1.0, 0.5)
 UNDERMAP_N = 256
 MARGIN = 1.5                # voxels added to the larger half-extent (plotSubcortex.m)
+MACAQUE_MARGIN = 1.0        # mm added to the macaque subcortex's larger half-extent
 
 
 def _path(name):
@@ -156,3 +158,64 @@ def macaque_flatmap(atlas):
 def macaque_mm_per_unit():
     """Millimetres of the template's cerebellar surface per macaque flatmap unit."""
     return float(_macaque_npz()["mm_per_unit"])
+
+
+@lru_cache(maxsize=1)
+def _macaque_subcortex_npz():
+    with _path("macaque/subcortex.npz").open("rb") as fh:
+        z = np.load(fh)
+        return {k: z[k] for k in z.files}
+
+
+@lru_cache(maxsize=None)
+def macaque_subcortex_names(atlas):
+    """(names, full names, level-3 parents) of a SARM level's subcortical
+    regions as drawn (tools/build_macaque_subcortex.py: every region but the
+    cerebellum's and the pituitary): the left hemisphere's (SL_) in SARM's key
+    order, then the same regions of the right (SR_)."""
+    _check_macaque(atlas)
+    z = _macaque_subcortex_npz()
+    left = [str(n) for n in z[f"names_{atlas}"]]
+    full = [str(n) for n in z[f"full_{atlas}"]]
+    parents = [str(n) for n in z[f"parent3_{atlas}"]]
+    return (tuple(left + ["SR_" + n[3:] for n in left]), tuple(full + ["SR_" + n[3:] for n in full]),
+            tuple(parents + parents))
+
+
+@lru_cache(maxsize=None)
+def sarm_names(atlas):
+    """Every region name of a SARM level, both hemispheres, the regions no
+    scmaps map draws (the cerebellar nuclei and white matter, the pituitary)
+    included."""
+    _check_macaque(atlas)
+    return tuple(str(n) for n in _macaque_subcortex_npz()[f"level_{atlas}"])
+
+
+@lru_cache(maxsize=None)
+def macaque_subcortex_meshes(atlas):
+    """{"L"/"R": (points, faces, region position per point)}: a SARM level's
+    subcortical surfaces, positions 1..n on the left, n+1..2n on the right;
+    the right is the left mirrored at x = 0 (SARM in NMT v2.1-sym is
+    symmetric), its faces turned to stay outward."""
+    _check_macaque(atlas)
+    z = _macaque_subcortex_npz()
+    P = z[f"points_{atlas}"].astype(float)
+    F = z[f"faces_{atlas}"].astype(np.int64)
+    roi = z[f"point_region_{atlas}"].astype(np.int64)
+    n = len(z[f"names_{atlas}"])
+    if roi.min() != 1 or roi.max() != n or F.min() != 0 or F.max() != len(P) - 1:
+        raise AssertionError(f"{atlas}: the subcortical surfaces and their regions do not line up")
+    return {"L": (P, F, roi), "R": (P * [-1.0, 1.0, 1.0], F[:, ::-1].copy(), roi + n)}
+
+
+@lru_cache(maxsize=None)
+def macaque_subcortex_frame(atlas):
+    """({"L"/"R": box centre}, half-extents) as subcortex_frame computes the
+    human one: each hemisphere centred in its own box, one box size (the
+    surfaces' half-extent plus MACAQUE_MARGIN mm)."""
+    ctr, half = {}, np.zeros(3)
+    for hemi, (P, _faces, _roi) in macaque_subcortex_meshes(atlas).items():
+        lo, hi = P.min(axis=0), P.max(axis=0)
+        ctr[hemi] = (lo + hi) / 2
+        half = np.maximum(half, (hi - lo) / 2)
+    return ctr, half + MACAQUE_MARGIN

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "scmaps"
 dynamic = ["version"]
-description = "Subcortical (Tian S2) and cerebellar (Nettekoven, SUIT flatmap; macaque SARM on an NMT flatmap) brain maps in Python, matching the MATLAB plotSubcortex / SUIT plotflatmap renders"
+description = "Subcortical (Tian S2; macaque SARM) and cerebellar (Nettekoven, SUIT flatmap; macaque SARM on an NMT flatmap) brain maps in Python, matching the MATLAB plotSubcortex / SUIT plotflatmap renders"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE", "NOTICE", "LICENSES/*"]
@@ -17,7 +17,7 @@ dependencies = [
     "nibabel>=4",
     "vtk>=9.2",
 ]
-keywords = ["neuroimaging", "brain", "subcortex", "cerebellum", "SUIT", "macaque", "visualization"]
+keywords = ["neuroimaging", "brain", "subcortex", "cerebellum", "SUIT", "macaque", "SARM", "visualization"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Intended Audience :: Science/Research",

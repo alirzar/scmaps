@@ -26,3 +26,4 @@ jobs:
       - run: python -m pytest -v
       - run: python examples/quickstart.py
       - run: python examples/macaque.py
+      - run: python examples/macaque_subcortex.py

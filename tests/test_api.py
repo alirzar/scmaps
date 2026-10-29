@@ -16,8 +16,8 @@ from scmaps import maps                                     # noqa: E402
 def calls(monkeypatch):
     rec = {}
 
-    def sub(rgb, layout, dpi, nan_rgb):
-        rec["subcortex"] = dict(rgb=np.asarray(rgb), layout=layout, dpi=dpi, nan_rgb=nan_rgb)
+    def sub(rgb, layout, dpi, nan_rgb, atlas="TianS2", cut=False):
+        rec["subcortex"] = dict(rgb=np.asarray(rgb), layout=layout, dpi=dpi, nan_rgb=nan_rgb, atlas=atlas, cut=cut)
         return np.zeros((4, 4, 4), np.uint8)
 
     def cer(rgb, alphas, dpi, atlas="NettekovenAsym32", style="suit", nan_rgb=None, border=None, outline=None):
@@ -182,3 +182,42 @@ def test_solid_style_and_its_colours_are_passed_on(calls):
     scmaps.cerebellum_map(np.zeros(32), style="solid", nan_color="black", border_color=None, outline_color="red")
     got = calls["cerebellum"]
     assert (got["nan_rgb"], got["border"], got["outline"]) == ((0.0, 0.0, 0.0), None, (1.0, 0.0, 0.0))
+
+
+def test_macaque_subcortex_atlases_and_their_regions():
+    assert scmaps.SUBCORTEX_ATLASES == ("TianS2", "SARM3", "SARM4", "SARM5", "SARM6")
+    assert scmaps.subcortex_regions() == scmaps.SUBCORTEX_REGIONS
+    for atlas, n in {"SARM3": 31, "SARM4": 64, "SARM5": 156, "SARM6": 180}.items():
+        names = scmaps.subcortex_regions(atlas)
+        assert len(names) == 2 * n and names == scmaps.MACAQUE_SUBCORTEX_REGIONS[atlas]
+        assert all(r.startswith("SL_") for r in names[:n]) and [r[3:] for r in names[:n]] == [r[3:] for r in names[n:]]
+        assert not set(names) & set(scmaps.cerebellum_regions(atlas))    # the cerebellar cortex is on the flatmap
+    three = set(scmaps.subcortex_regions("SARM3"))
+    assert {"SL_Str", "SL_Pd", "SL_VMed", "SR_LPal"} <= three
+    assert not {"SL_Pit", "SL_DCb", "SL_wmCB", "SL_CbCx"} & three        # not drawn
+    with pytest.raises(ValueError):
+        scmaps.subcortex_regions("SARM2")
+
+
+def test_macaque_subcortex_values_by_name(calls):
+    """A SARM mapping may hold the whole level: the regions this map does not draw are passed over; a name of
+    another level, or none of SARM's, is refused."""
+    scmaps.subcortex_map({"SL_Str": 1.0, "SR_Pd": -1.0, "SL_CbCx": 9.0, "SL_Pit": 9.0}, atlas="SARM3",
+                         cmap="RdBu_r", vmin=-1, vmax=1, cut=True)
+    got = calls["subcortex"]
+    names = scmaps.subcortex_regions("SARM3")
+    assert got["atlas"] == "SARM3" and got["cut"] is True and got["rgb"].shape == (len(names), 3)
+    cm = matplotlib.colormaps["RdBu_r"]
+    np.testing.assert_allclose(got["rgb"][names.index("SL_Str")], cm(1.0)[:3])
+    np.testing.assert_allclose(got["rgb"][names.index("SR_Pd")], cm(0.0)[:3])
+    assert np.isnan(np.delete(got["rgb"], [names.index("SL_Str"), names.index("SR_Pd")], axis=0)).all()
+    with pytest.raises(KeyError):
+        scmaps.subcortex_map({"SL_Striatum": 1.0}, atlas="SARM3")
+    with pytest.raises(KeyError):
+        scmaps.subcortex_map({"SL_CbCx": 1.0}, atlas="SARM5")       # level 3's name, not level 5's
+    scmaps.cerebellum_map({"SL_PVCbCx": 1.0, "SL_Pu": 5.0}, atlas="SARM5", vmin=0, vmax=1)   # and the other way round
+    rgb = calls["cerebellum"]["rgb"]
+    assert np.isfinite(rgb[scmaps.cerebellum_regions("SARM5").index("SL_PVCbCx")]).all() and np.isnan(rgb).any()
+    scmaps.subcortex_map(np.zeros(32))                                  # the human map: no cut, TianS2
+    assert calls["subcortex"]["atlas"] == "TianS2" and calls["subcortex"]["cut"] is False
+

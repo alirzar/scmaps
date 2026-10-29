@@ -62,7 +62,8 @@ redistributed under the terms of its source.
      https://doi.org/10.1038/s41593-020-00711-6
 
 
-4. macaque/FLAT.surf.gii, macaque/NMT.shape.gii, macaque/cerebellum_labels.npz
+4. macaque/FLAT.surf.gii, macaque/NMT.shape.gii, macaque/cerebellum_labels.npz,
+   macaque/subcortex.npz
    The macaque cerebellar flatmap, its shading underlay and the SARM label
    (levels 3-6) of each of its vertices, built by
    tools/build_macaque_flatmap.py from the NMT v2.1-sym template's tissue
@@ -71,8 +72,14 @@ redistributed under the terms of its source.
    in cerebellum_labels.npz (inputs_sha256). The underlay's values follow
    the distribution of SUIT.shape.gii (item 1).
 
-   Changes: derived data only (a flat mesh, per-vertex labels and depths);
-   no template or atlas volume is redistributed.
+   macaque/subcortex.npz: the surfaces of SARM's other subcortical regions
+   (levels 3-6; not the cerebellum's, not the pituitary), built by
+   tools/build_macaque_subcortex.py from the same SARM (surface nets on a
+   0.5 mm grid, smoothed, simplified, each pulled in half a voxel); the input
+   files' sha256 are stored in it (inputs_sha256).
+
+   Changes: derived data only (a flat mesh, per-vertex labels and depths,
+   region surfaces); no template or atlas volume is redistributed.
 
    Please cite (as the NMT v2.1 distribution's readme gives them):
    - Hartig R, Glen D, Jung B, Logothetis NK, Paxinos G, Garza-Villareal EA,

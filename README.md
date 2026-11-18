@@ -1,6 +1,6 @@
 # scmaps
 
-Subcortical and cerebellar brain maps in Python:
+Subcortical and cerebellar brain maps in Python, for human and macaque data:
 
 * the 32 ROIs of the **Tian S2** subcortical atlas (Melbourne Subcortex Atlas,
   Scale II), drawn as 3-D surfaces;
@@ -18,11 +18,12 @@ Either flatmap can also be drawn in a **solid** style: flat colours on light
 grey, white lines between the regions, a grey outline
 ([Solid style](#solid-style)).
 
-It is a port of MATLAB plotting code (`plotSubcortex.m`, and
-`plotCerebellum.m` built on SUIT's `plotflatmap.m`). It uses the same surfaces,
-views, scale, lighting and flatmap colour arithmetic, checked map by map
-against the MATLAB renders. You don't need MATLAB, SPM or SUIT to run it; it
-draws off-screen with VTK.
+The human maps are a port of MATLAB plotting code (`plotSubcortex.m`, and
+`plotCerebellum.m` built on SUIT's `plotflatmap.m`): the same surfaces, views,
+scale, lighting and flatmap colour arithmetic, checked map by map against the
+MATLAB renders. The macaque maps are drawn the same way, from surfaces and a
+flatmap built for scmaps from the NMT v2.1-sym template. You don't need
+MATLAB, SPM or SUIT to run it; it draws off-screen with VTK.
 
 ![example](examples/quickstart.png)
 
@@ -55,13 +56,15 @@ scmaps.plot_cerebellum(values, ax=b, cmap="RdBu_r", vmin=-2, vmax=2)
 fig.colorbar(sm, ax=[a, b])
 ```
 
-**Values.** Pass 32 values in plotting order, or a mapping (a dict or a
-pandas Series) from region name to value:
+**Values.** Pass one value per region in plotting order (32 for the human
+atlases), or a mapping (a dict or a pandas Series) from region name to value:
 
 | | order | names |
 |---|---|---|
 | subcortex | left hemisphere's 16 ROIs, then the right's | `scmaps.SUBCORTEX_REGIONS`: `aHIP-lh`, `pHIP-lh`, … `pCAU-rh` |
 | cerebellum | Nettekoven Asym32 labels 1–32 in the atlas's current numbering (1–16 left, 17–32 right) | `scmaps.CEREBELLUM_REGIONS`: `M1L` … `S5L`, `M1R` … `S5R` |
+| macaque subcortex | `scmaps.subcortex_regions(atlas)`: the left hemisphere's regions, then the right's (`"SARM3"` 62 values, `"SARM4"` 128, `"SARM5"` 312, `"SARM6"` 360) | SARM's: `SL_LPal` … `SR_VMed` at level 3 |
+| macaque cerebellum | `scmaps.cerebellum_regions(atlas)`, the same way (2, 8, 10 and 42 values) | SARM's: `SL_CbCx`, `SR_CbCx` at level 3; `SL_Cb1V` … `SR_Fl` at level 6 |
 
 A region with NaN, or one missing from a mapping, has no value. It is drawn
 grey on the subcortex (`nan_color`) and shows only the flatmap's grey underlay
@@ -97,6 +100,18 @@ for no value), or a mapping from name to colour. For example,
 The renderers take RGB directly as well:
 `scmaps.render_subcortex(rgbNx3, layout, dpi, atlas=..., cut=...)` and
 `scmaps.render_cerebellum(rgbNx3, alphas, dpi, atlas=..., style=...)`.
+
+## Examples
+
+`examples/` holds the scripts behind this page's figures; each writes its PNG
+beside itself (`python examples/<name>.py`):
+
+* `quickstart.py`: the human subcortex and cerebellum side by side, with a
+  shared colourbar and a highlighted seed (the figure at the top);
+* `macaque.py`: the macaque cerebellar flatmap, SARM's level-6 lobules in the
+  default style and level-5 values in the solid style;
+* `macaque_subcortex.py`: the macaque subcortex at SARM levels 3 and 5, with
+  the cut-away views.
 
 ## Solid style
 
@@ -259,6 +274,22 @@ pytest
 `tools/convert_resources.py` regenerates the `.npz` atlas files in
 `src/scmaps/data/` from their sources in `tools/source/`, and checks
 that the conversion is lossless.
+
+`tools/build_macaque_flatmap.py` and `tools/build_macaque_subcortex.py`
+rebuild the macaque files in `src/scmaps/data/macaque/` from AFNI's NMT
+v2.1-sym distribution, which is not bundled:
+`python tools/build_macaque_flatmap.py NMT_ROOT` and
+`python tools/build_macaque_subcortex.py NMT_ROOT`.
+
+## Versions
+
+* **0.3.0** (2026-10-29): the macaque subcortex: SARM levels 3–6 as 3-D
+  surfaces, with cut-away views (`atlas=`, `cut=`, `subcortex_regions()`).
+* **0.2.0** (2026-10-29): the macaque cerebellum on a macaque cerebellar
+  flatmap (SARM levels 3–6, `cerebellum_regions()`), and the solid flatmap
+  style (`style="solid"`).
+* **0.1.0** (2026-10-05): the human subcortex (Tian S2) and cerebellum
+  (Nettekoven Asym32 on SUIT's flatmap), ported from MATLAB.
 
 ## Citing
 
